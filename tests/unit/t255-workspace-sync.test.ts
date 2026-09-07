@@ -19,7 +19,7 @@
 // non-destructive keep/render cases, while every removal case uses real repos.
 // Mechanism: subprocess spawn of bun; zero LLM.
 
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -37,6 +37,9 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseWorkspaceManifest } from "../../core/tools/aidlc-workspace-manifest.ts";
+
+// Real git repos + bare remotes + a shimmed sleep 1 per case exceed bun's 5s default under load.
+setDefaultTimeout(30_000);
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SCRIPT = join(REPO_ROOT, "core", "tools", "aidlc-workspace-sync.ts");
