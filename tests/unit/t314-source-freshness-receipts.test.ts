@@ -1230,6 +1230,30 @@ describe("t314 workspace source fingerprint (in-process)", () => {
     }
   });
 
+  test("commit reconstruction preserves a cat-file header across the 64 KiB reader boundary", () => {
+    seedGitRepo(dir);
+    rmSync(join(dir, "app.ts"));
+    writeFileSync(join(dir, "a-big.ts"), Buffer.alloc(65_468, 0x61));
+    writeFileSync(join(dir, "b-small.ts"), "b\n", "utf-8");
+    writeFileSync(join(dir, "c-big.ts"), Buffer.alloc(70_000, 0x63));
+    git(dir, ["add", "-A"]);
+    git(dir, ["commit", "-qm", "cat-file header seam"]);
+    const head = spawnSync(
+      "git",
+      ["-C", dir, "rev-parse", "HEAD"],
+      { encoding: "utf-8" },
+    ).stdout.trim();
+
+    // Header (52) + first blob (65,468) + delimiter (1) leaves 15 bytes in
+    // the 64 KiB fill, forcing the next blob header to span a buffer refill;
+    // the trailing large blob makes that refill overwrite the partial view.
+    const listing = gitCommitSourceListing(dir, head, true);
+    expect(listing).not.toBeNull();
+    expect(listing?.has("\0a-big.ts")).toBe(true);
+    expect(listing?.has("\0b-small.ts")).toBe(true);
+    expect(listing?.has("\0c-big.ts")).toBe(true);
+  });
+
   test("commit reconstruction never reads a symlinked worktree metadata target", () => {
     seedGitRepo(dir);
     const external = `${dir}-external-worktree-meta.json`;

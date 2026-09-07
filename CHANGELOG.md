@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [2.7.2] - 2026-09-08
+
+Two fixes in the shared library behind `worktree create`, Bolt/Swarm start, and unit source-manifest validation, plus test-suite reliability work under `--parallel`. Upgrade by copying the new `dist/<harness>/` tree; no record migration is needed.
+
+* **`aidlc worktree create` (and Bolt/Swarm start through it) no longer refuses with `Base source listing could not be computed`** when a tracked file's `git cat-file --batch` header happens to cross a 64 KiB read boundary — the commit-tree reconstruction kept a stale view of its read buffer across a refill and mis-parsed the header. Whether it triggered depended only on the cumulative size of the files in the tree.
+
 ## [2.7.1] - 2026-09-01
 
 Fix a Plan Approval deadlock that made Code Generation unreachable on solo (non-team) workflows. The Stop hook's read-only `next` probe published the durable active-directive marker on every turn boundary, which bumped the Code Generation authority revision and reset the plan-approval runtime, so the approval challenge minted while answering "Approve Plan" was destroyed before its receipt could be written. The probe no longer publishes that marker for any workflow, matching the read-only contract it already advertised. **Upgrade:** replace the `dist/<harness>/` tree; no workflow state migration is required. Closes #995.
