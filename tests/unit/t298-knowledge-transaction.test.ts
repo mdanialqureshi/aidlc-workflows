@@ -598,7 +598,7 @@ describe("t298 the journal: absent-or-complete, and collectable", () => {
         `while (Date.now() < until) { fs.existsSync(${JSON.stringify(p)}); }\n`,
     );
     const holderProc = spawnSync("bash", ["-c",
-      `bun ${JSON.stringify(holder)} & echo $!`], { encoding: "utf-8" });
+      `bun ${JSON.stringify(holder)} >/dev/null 2>&1 & echo $!`], { encoding: "utf-8" });
     const holderPid = Number(holderProc.stdout.trim().split("\n").pop());
     expect(Number.isInteger(holderPid) && holderPid > 0, `bad holder pid: ${holderProc.stdout}`).toBe(true);
 
