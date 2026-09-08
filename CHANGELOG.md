@@ -9,7 +9,7 @@ Add a `preview` release channel next to the stable one. A scheduled release work
 * Preview discovery uses the GitHub releases API behind the configured release base URL. API errors and rate limits report the release as unavailable and never fall back to stable.
 * Exact-version installs, `aidlc use`, project pins, Unix installers, and PowerShell installers accept `x.y.z-preview.YYYYMMDD.N` ids.
 * Switching back to `stable` converges on the newest stable release as a channel switch, while preview retention keeps the two newest complete previews beyond active, rollback, in-use, and pinned protections.
-* Scheduled preview builds stamp `AIDLC_BUILD_VERSION` into projections, binaries, `version.json`, and versioned runtime archives; preview releases use annotated tags and are published as non-latest prereleases.
+* Scheduled or manually dispatched preview builds stamp `AIDLC_BUILD_VERSION` into projections, binaries, `version.json`, and versioned runtime archives; preview releases use annotated tags and are published as non-latest prereleases through an unattended `preview` environment, while stable publication keeps the reviewed `release` environment and runs queue independently per channel.
 
 ## [2.8.0] - 2026-09-08
 

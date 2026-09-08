@@ -411,7 +411,7 @@ aidlc-claude/
 │   │                           #   runner-gen → emit() per tree. --check = two-build determinism guard
 │   ├── build-binaries.ts       # release-only CLI bundles under ignored build/
 │   ├── package-release.ts      # flat release assets, data archives, checksums, version manifest
-│   ├── publish-release.ts      # verified draft -> immutable GitHub release (stable tag or preview prerelease)
+│   ├── publish-release.ts      # verified preview draft -> annotated immutable prerelease
 │   ├── plan-preview-release.ts # preview id allocation, skip-unchanged-main check, release notes
 │   ├── preview-release.ts      # preview tag message and plan record shared by the two above
 │   ├── install.sh              # macOS/Linux online and offline bootstrap
