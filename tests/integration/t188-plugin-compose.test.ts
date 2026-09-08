@@ -17,7 +17,7 @@
 
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, posix, resolve, win32 } from "node:path";
 import {
@@ -132,7 +132,12 @@ function parseHookDrops(raw: string): HookDrop[] {
 }
 
 function comparablePath(path: string): string {
-  const absolute = resolve(path);
+  let absolute: string;
+  try {
+    absolute = realpathSync.native(path);
+  } catch {
+    absolute = resolve(path);
+  }
   return process.platform === "win32" ? absolute.toLowerCase() : absolute;
 }
 
