@@ -36,7 +36,7 @@
 // per-unit branch resolves `none` and exercises the stage-level fallback -
 // exactly the receipt path the fingerprint filter protects.
 
-import { afterAll, beforeEach, afterEach, describe, expect, test } from "bun:test";
+import { afterAll, beforeEach, afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
@@ -82,6 +82,10 @@ import {
   seedStateFile,
   setupWorktreeFixture,
 } from "../harness/fixtures.ts";
+
+// The default also governs afterAll removal of a dozen-plus worktree fixtures,
+// which exceeds bun's 5s hook default under load; per-case literals stay.
+setDefaultTimeout(120_000);
 
 const BUN = process.execPath;
 const STATE = join(AIDLC_SRC, "tools", "aidlc-state.ts");
