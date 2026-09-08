@@ -3,10 +3,11 @@ All notable changes to this project will be documented in this file.
 
 ## [2.7.2] - 2026-09-08
 
-Two fixes in the shared library behind `worktree create`, Bolt/Swarm start, and unit source-manifest validation, plus test-suite reliability work under `--parallel`. Upgrade by copying the new `dist/<harness>/` tree; no record migration is needed.
+Three fixes in the shared library behind `worktree create`, Bolt/Swarm start, unit source-manifest validation, and SessionStart session binding, plus test-suite reliability work under `--parallel`. Upgrade by copying the new `dist/<harness>/` tree; no record migration is needed.
 
 * **`aidlc worktree create` (and Bolt/Swarm start through it) no longer refuses with `Base source listing could not be computed`** when a tracked file's `git cat-file --batch` header happens to cross a 64 KiB read boundary — the commit-tree reconstruction kept a stale view of its read buffer across a refill and mis-parsed the header. Whether it triggered depended only on the cumulative size of the files in the tree.
 * **Reviewing or finalizing a unit with hundreds of source claims is no longer minutes of git spawns.** `source-manifest.json` validation ran three `git` processes per claimed path (HEAD lookup, tree membership, ignore check); it now resolves HEAD once, reads the tree once, and checks ignore rules for every claim in one batched `git check-ignore`, with identical accept/refuse results.
+* **A new session's SessionStart maps its own harness process before cleaning up stale entries.** The hook used to spend its 50 ms ancestry budget re-checking the previous session's process entries before writing the new one, so on macOS a second session in the same project could stay bound to the first session's intent; it now writes the current ancestry first (resolving each ancestor's `ps` identity once) and reaps stale entries with the remaining budget — without deleting a live process's entry it could not verify in time (dead entries are reaped without spawning `ps`).
 
 ## [2.7.1] - 2026-09-01
 
