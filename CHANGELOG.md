@@ -1,6 +1,13 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [2.8.2] - 2026-09-09
+
+Restore the native Code Generation Plan Approval prerequisites that 2.8.0 rewrote to `aidlc engine` commands but the plan-approval guard still recognized only in their Bun form. **Upgrade:** run `aidlc update`, or use `install.sh --version 2.8.2` / `install.ps1 -Version 2.8.2`. No project migration is required.
+
+* Native projects can run the required `testing-posture render`, `testing-posture fingerprint`, `log decision`, and `log answer` engine commands before Plan Approval on the seven supported harnesses, including the Windows `aidlc.exe` spelling. The guard still blocks generation, system routes, unrelated engine mutations, and arbitrary project test execution until approval is current.
+* Plan Approval mutation refusals now state that approval is not current instead of describing an unapproved plan as already approved.
+
 ## [2.8.1] - 2026-09-08
 
 Fix two defects found while exercising the 2.8.0 native install on Linux and Windows: the guided `aidlc config` setup cancelled itself when Enter was pressed to accept a default, and `aidlc update` on an already-current install failed its integrity check under a normal shell umask. **Upgrade:** `aidlc update`, or `install.sh --version 2.8.1` / `install.ps1 -Version 2.8.1`; no project changes are required, and `aidlc config` refreshes projects when convenient.
