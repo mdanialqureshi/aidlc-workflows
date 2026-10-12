@@ -433,3 +433,118 @@ describe("the human-turn hook keeps one record of each message", () => {
     expect(records(proj)).toEqual([]);
   });
 });
+
+// #1505: the HUMAN_TURN row said only that a person acted, so the trail read as
+// a heartbeat and what they said survived only where another event echoed it.
+// The row now carries `Said`: one line of what the turn was, redacted and cut.
+// It is a summary for the reader, never authority — the presence gate reads the
+// row, never this field, and the whole message stays in the message record.
+describe("the HUMAN_TURN row says what the person said", () => {
+  const said = (proj: string): string | null => auditBlockField(humanTurns(proj)[0].block, "Said");
+
+  for (const harness of HARNESSES) {
+    test(`${harness}: a typed prompt is on the row as one line`, () => {
+      const proj = withWork();
+      say(proj, "add a test for an empty title", harness);
+      expect(said(proj)).toBe("add a test for an empty title");
+    });
+  }
+
+  test("a command-only turn keeps its command mark and says the line it was", () => {
+    const proj = withWork();
+    say(proj, "/aidlc --status");
+    const [turn] = humanTurns(proj);
+    expect(auditBlockField(turn.block, "Reply")).toBe("command");
+    expect(auditBlockField(turn.block, "Said")).toBe("/aidlc --status");
+  });
+
+  test("a picker reply says the pick the box carried back", () => {
+    const proj = withWork();
+    pick(proj, "claude", "Where should the check live?", ["In the API handler", "In the model"], "In the API handler");
+    const [turn] = humanTurns(proj);
+    expect(auditBlockField(turn.block, "Source")).toBe("picker");
+    expect(auditBlockField(turn.block, "Said")).toBe("In the API handler");
+  });
+
+  test("a prompt the host left empty says nothing: no Said field at all", () => {
+    const proj = withWork();
+    say(proj, "", "kiro-ide");
+    const turns = humanTurns(proj);
+    expect(turns).toHaveLength(1);
+    expect(auditBlockField(turns[0].block, "Said")).toBeNull();
+  });
+
+  test("a long prompt is cut to 200 characters and ends in an ellipsis", () => {
+    const proj = withWork();
+    const long = "the parser drops a trailing comma. ".repeat(40).trim();
+    expect(long.length).toBeGreaterThan(200);
+    say(proj, long);
+    const line = said(proj)!;
+    expect(line).toHaveLength(200);
+    expect(line.endsWith("…")).toBe(true);
+    expect(long.startsWith(line.slice(0, 100))).toBe(true);
+    // The whole text is still kept in the message record.
+    expect(records(proj)[0].text).toBe(long);
+  });
+
+  test("a prompt of several lines is folded onto one, so the field stays one audit line", () => {
+    const proj = withWork();
+    say(proj, "first line\nsecond line\r\nthird line");
+    expect(said(proj)).toBe("first line second line third line");
+  });
+
+  // Built at runtime so this source file carries no key-shaped literal (t37's idiom).
+  test("secret-shaped text in a prompt is redacted before it reaches the row", () => {
+    const proj = withWork();
+    const awsKey = `AKIA${"C3".repeat(8)}`;
+    const githubToken = `ghp_${"G7".repeat(18)}`;
+    const bearer = `Bearer ${"b4".repeat(12)}`;
+    say(proj, `deploy with ${awsKey} and ${githubToken}, header ${bearer}`);
+    const line = said(proj)!;
+    for (const secret of [awsKey, githubToken, bearer.slice("Bearer ".length)]) {
+      expect(line).not.toContain(secret);
+    }
+    expect(line).toContain("deploy with");
+    expect(line).toContain("<redacted-aws-key>");
+    expect(line).toContain("<redacted-github-token>");
+    expect(line).toContain("Bearer <redacted-token>");
+  });
+
+  test("a pasted private key block never reaches the row", () => {
+    const proj = withWork();
+    const body = "MIIBdummyKeyBody".repeat(4);
+    const header = ["-----BEGIN", "RSA", "PRIVATE", "KEY-----"].join(" ");
+    const footer = header.replace("BEGIN", "END");
+    say(proj, `use this key:\n${header}\n${body}\n${footer}`);
+    const line = said(proj)!;
+    expect(line).toContain("use this key:");
+    expect(line).not.toContain(body);
+    expect(line).not.toContain("PRIVATE KEY");
+    expect(line).toContain("<redacted-private-key>");
+  });
+
+  test("a password assignment typed in a prompt is redacted", () => {
+    const proj = withWork();
+    const secret = "sup3rsecretvalue";
+    say(proj, `connect with password=${secret} please`);
+    const line = said(proj)!;
+    expect(line).not.toContain(secret);
+    expect(line).toContain("<redacted>");
+  });
+
+  test("the row still gates on presence alone: Said is a summary, not authority", () => {
+    const proj = withWork();
+    say(proj, "approve");
+    const [turn] = humanTurns(proj);
+    expect(turn.event).toBe("HUMAN_TURN");
+    expect(auditBlockField(turn.block, "Origin")).toBe("person");
+    expect(auditBlockField(turn.block, "Source")).toBe("typed");
+    expect(auditBlockField(turn.block, "Said")).toBe("approve");
+  });
+
+  test("an unattended driver writes no row and so says nothing", () => {
+    const proj = withWork();
+    say(proj, "approve", "claude", { AIDLC_UNATTENDED: "1" });
+    expect(humanTurns(proj)).toEqual([]);
+  });
+});

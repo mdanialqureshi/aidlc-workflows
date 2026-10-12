@@ -117,6 +117,7 @@ import {
   notePlanApprovalFileAnswer,
 } from "../tools/aidlc-plan-approval-ask.ts";
 import { aidlcEntryWords, isAidlcCommandPrompt } from "../tools/aidlc-reply-reader.ts";
+import { redactSecretPatterns } from "../tools/aidlc-doctor-bundle.ts";
 import { MESSAGE_PICKER_MAX_CHARS, MESSAGE_TEXT_MAX_CHARS, saveMessage, type StoredMessage } from "../tools/aidlc-message-store.ts";
 
 // The one parse of a typed line, for the message record (aidlc-message-store.ts)
@@ -177,6 +178,30 @@ async function messageParse(typedPrompt: string): Promise<MessageParse> {
   } catch {
     return { words, settings: [], route, command: true };
   }
+}
+
+// What the turn's row says about the words themselves. The row used to record
+// only that a person acted, so a reader had to cross-reference another event to
+// learn what the turn was (#1505); the whole message stays in the message
+// record (aidlc-message-store.ts) and in the kept gate words, and this is the
+// one-line summary the trail itself can be read with.
+//
+// Deliberately a SUMMARY and nothing a reader may act on: secret-shaped text is
+// redacted first (the same shared scan the doctor bundle applies to every
+// string it emits), every line break and control character becomes a space so
+// the value stays one Markdown field on one physical line, and the result is
+// cut to 200 characters with a trailing ellipsis when it was cut. It carries no
+// authority: the presence gate reads the row, never this field.
+const HUMAN_TURN_SAID_MAX_CHARS = 200;
+function turnSaidSummary(text: string): string {
+  const oneLine = redactSecretPatterns(text)
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (oneLine === "") return "";
+  return oneLine.length <= HUMAN_TURN_SAID_MAX_CHARS
+    ? oneLine
+    : `${oneLine.slice(0, HUMAN_TURN_SAID_MAX_CHARS - 1).trimEnd()}…`;
 }
 
 function extractResponseText(value: unknown): string {
@@ -750,6 +775,11 @@ try {
       // checkpoint, verification command, gate, or legacy plan question keeps
       // it, and decisions on those skip it as they skip a command.
       const answersEngineQuestion = replyText !== "" && engineQuestionHoldsReplies(projectDir);
+      // The turn's own one-line summary for the row: the line as typed (a
+      // command to AIDLC included, which is what that turn was) or the pick a
+      // question box carried back. It reads no meaning, decides nothing, and an
+      // empty turn has none.
+      const said = turnSaidSummary(promptSubmitted ? typedPrompt : humanResponseText);
       let keptWordsOffset: number | null = null;
       try {
         withAuditLock(projectDir, () => {
@@ -765,6 +795,10 @@ try {
             ...(promptSubmitted ? { Source: "typed" } : pickerQuestion !== undefined ? { Source: "picker" } : {}),
             ...(notAReply || answersEngineQuestion ? { Reply: COMMAND_TURN_REPLY } : {}),
             ...(picked.length > 0 ? { Picked: JSON.stringify(picked) } : {}),
+            // What the turn was, in one redacted and capped line, so the trail
+            // reads on its own instead of as a bare heartbeat (#1505). Absent
+            // when the turn carried no text (a prompt the host left empty).
+            ...(said ? { Said: said } : {}),
             ...(messageId ? { "Message Id": messageId } : {}),
           }, projectDir);
           // Keep what the person typed in this chat, so a decision at a stage
