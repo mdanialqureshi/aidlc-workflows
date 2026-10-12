@@ -39185,6 +39185,66 @@ import type {
   appendAuditEntryUnlocked as AppendAuditEntryUnlocked,
 } from "./aidlc-audit.ts";
 
+// Secret-like token shapes, and the one scan over them. Deliberately broad:
+// AWS keys, GitHub tokens, private-key blocks, bearer/JWT-ish blobs, generic
+// `key=`/`token=`/`secret=`/`password=` assignments, and long hex/base64 runs.
+// A false positive redacts a harmless string (acceptable); a miss leaks a
+// secret (not).
+//
+// One owner, one list: the diagnostic exporter (aidlc-doctor-bundle.ts, which
+// names the rule that fired in its manifest) and the human-turn hook's own row
+// summary both scan with these, so a shape added here is covered everywhere.
+export const SECRET_PATTERNS: ReadonlyArray<{ rule: string; re: RegExp; replace: string }> = [
+  {
+    // A key block is matched before anything inside it: the body is base64 and
+    // the markers are the only reliable anchor. A block whose END marker was
+    // already cut away still redacts to the end of the text.
+    rule: "private-key-block",
+    re: /-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]{0,40}PRIVATE KEY-----|$)/g,
+    replace: "<redacted-private-key>",
+  },
+  { rule: "aws-access-key", re: /\b(AKIA|ASIA)[A-Z0-9]{16}\b/g, replace: "<redacted-aws-key>" },
+  // GitHub's own prefixes: ghp_ (classic PAT), gho_/ghu_/ghs_/ghr_ (OAuth,
+  // user-to-server, server-to-server, refresh) and github_pat_ (fine-grained).
+  {
+    rule: "github-token",
+    re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
+    replace: "<redacted-github-token>",
+  },
+  { rule: "bearer-token", re: /\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b/g, replace: "Bearer <redacted-token>" },
+  { rule: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, replace: "<redacted-jwt>" },
+  {
+    // Matches `password=hunter2`, JSON-shaped `"password": "hunter2"`, AND the
+    // JSON-ESCAPED form `{\"password\":\"hunter2\"}` that arises when a secret
+    // sits one nesting level down and buildBundle JSON.stringify-serializes it
+    // BEFORE redaction — the escaping backslash then sits between the key and
+    // the quote (Arden round-3 #4). The optional `\\?` before each optional
+    // quote absorbs that backslash. The value class also includes common secret
+    // punctuation (@#$%^&*!) so `password=p@ssw0rd!` is caught. Over-redaction
+    // of a benign value is acceptable per this list's stated bias; a miss is
+    // not. Whole JSON documents are redacted post-serialization.
+    rule: "assignment-secret",
+    // No trailing quote match: consuming a closing quote corrupted JSON when a
+    // secret ended a string value (Arden r4 #2). JSON files now redact before
+    // serialization (stageJson) so quotes never reach here for them; dropping
+    // the trailing quote also keeps report.md prose intact. Leading `\\?['"]?`
+    // still absorbs an opening/escaped quote so the JSON-quoted key form matches.
+    re: /\b(api[_-]?key|secret|token|password|passwd|pwd)\b\\?['"]?\s*[:=]\s*\\?['"]?[A-Za-z0-9!@#$%^&*._~+/=-]{6,}/gi,
+    replace: "$1=<redacted>",
+  },
+  { rule: "long-hex-or-b64", re: /\b[A-Fa-f0-9]{40,}\b/g, replace: "<redacted-hex>" },
+];
+
+export function redactSecretPatterns(value: string): string {
+  let out = value;
+  for (const { re, replace } of SECRET_PATTERNS) {
+    re.lastIndex = 0;
+    out = out.replace(re, replace);
+    re.lastIndex = 0;
+  }
+  return out;
+}
+
 export function redactProjectDirPrefix(
   value: string,
   projectDir: string,
