@@ -201,6 +201,23 @@ export function newRedactionContext(projectDir: string): RedactionContext {
 // miss leaks a secret (not). Applied to every emitted string.
 const SECRET_PATTERNS: Array<{ rule: string; re: RegExp; replace: string }> = [
   { rule: "aws-access-key", re: /\b(AKIA|ASIA)[A-Z0-9]{16}\b/g, replace: "<redacted-aws-key>" },
+  // GitHub's own token shapes: the `gh*_` family (personal, OAuth, user, server,
+  // refresh) and the fine-grained `github_pat_` form.
+  {
+    rule: "github-token",
+    re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
+    replace: "<redacted-github-token>",
+  },
+  {
+    // A pasted key block, from its BEGIN header to its END marker — and to the
+    // end of the text when the paste carries no END marker, so the base64 body
+    // of a key cut short never survives either. Over-redacting the tail of a
+    // string that opens a key block and never closes one is this module's
+    // stated bias (a false positive is acceptable; a miss is not).
+    rule: "private-key-block",
+    re: /-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END[A-Z ]*PRIVATE KEY-----|$)/g,
+    replace: "<redacted-private-key>",
+  },
   { rule: "bearer-token", re: /\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b/g, replace: "Bearer <redacted-token>" },
   { rule: "jwt", re: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, replace: "<redacted-jwt>" },
   {
